@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport"
+              content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+        <title>Webflux::websocket</title>
+        <style>
+            body {
+                margin-left: auto;
+                margin-right: auto;
+                width: 80%;
+            }
+
+            input, select, button {
+                height: 30px;
+            }
+
+        </style>
+    </head>
+    <body>
+        <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js" integrity="sha512-iKDtgDyTHjAitUDdLljGhenhPwrbBfqTKWO1mkhSFH3A7blITC9MhYon6SjnMhp4o0rADGw9yAC6EW4t5a4K3g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <div id="app">
+            <h1>{{ title }}</h1>
+            <hr/>
+            <p>Welcome {{ loggedInUser.username }}!</p>
+            <hr/>
+            <div style="display: flex;flex-direction: row; gap: 20px; align-content: space-around">
+                <div>
+                    <form @submit.prevent="sendPrivateMessage">
+                        <select v-model="message.to">
+                            <option v-for="user in users" :value="user.username" :disabled="loggedInUser.username === user.username">{{user.username}}</option>
+                        </select>
+
+                        <input type="text" v-model="message.message">
+
+                        <br/>
+
+                        <button>Send</button>
+                    </form>
+                    <br/>
+                    <button @click="sendPublicMessage('HEY ALL')">Send TO ALL</button>
+                </div>
+                <div>
+                    <ul>
+                        <li v-for="msg in messages">{{msg}}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <script>
+            const { createApp, ref, onMounted } = Vue
+            const apiHost = 'http://localhost:8080'
+            createApp({
+                setup() {
+                    const title = ref('Spring Security Websocket!')
+                    const stompClient = ref(null)
+                    const messages = ref([])
+                    const message = ref({
+                        to: '',
+                        from: '',
+                        message: ''
+                    })
+                    const loggedInUser = ref({})
+                    const users = ref([])
+                    const selectedUser = ref('')
+
+                    const whoami = () => {
+                        fetch(`${apiHost}/me`, {
+                            method: 'GET',
+                            credentials: 'include',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        })
+                            .then(response => response.json())
+                            .then(data => loggedInUser.value = data)
+                    }
+
+                    const allUsers = () => {
+                        fetch(`${apiHost}/users`, {
+                            method: 'GET',
+                            credentials: 'include',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        })
+                            .then(response => response.json())
+                            .then(data => users.value = data)
+                    }
+
+                    const sendPublicMessage = (m) => {
+                        stompClient.value.send('/app/message/public', {}, JSON.stringify({
+                            'from': loggedInUser.value.username,
+                            'to': 'all',
+                            'message': m
+                        }));
+                        message.value.message = ''
+                    }
+
+                    const sendPrivateMessage = () => {
+                        stompClient.value.send('/app/message/private', {}, JSON.stringify({
+                            'from': loggedInUser.value.username,
+                            'to': message.value.to,
+                            'message': message.value.message
+                        }));
+                        message.value.message = ''
+                    }
+
+                    onMounted(() => {
+                        // fetch user details
+                        whoami()
+                        allUsers()
+
+                        // connect to websocket
+                        const socket = new SockJS(`${apiHost}/ws`)
+                        stompClient.value = Stomp.over(socket)
+
+                        stompClient.value.connect({}, frame => {
+                            console.log('Connected: ' + frame);
+                            stompClient.value.subscribe('/topic/public', (msg) => {
+                                console.log(`Received: ${msg.body}`);
+                                const jsonMessage = JSON.parse(msg.body)
+                                messages.value.push({type: "PUBLIC",...jsonMessage})
+                            },{'x-message-ttl': 6000});
+
+                            stompClient.value.subscribe('/user/queue/private', (msg) => {
+                                console.log(`Received: ${msg.body}`);
+                                const jsonMessage = JSON.parse(msg.body)
+                                messages.value.push({type: "PRIVATE",...jsonMessage})
+                            },{'x-message-ttl': 6000});
+
+                            //Greet the user on connect
+                            stompClient.value.send('/app/message/public', {}, JSON.stringify({
+                                'from': loggedInUser.value.username,
+                                'to': 'all',
+                                'message': loggedInUser.value.username + ' has just Joined!'
+                            }));
+                        },(error) => {
+                            console.log('Connection error: ' + error);
+                        });
+
+
+                    })
+
+                    return {
+                        title, messages, loggedInUser, sendPublicMessage, sendPrivateMessage, message, users, selectedUser
+                    }
+                }
+            }).mount('#app')
+        </script>
+    </body>
+</html>

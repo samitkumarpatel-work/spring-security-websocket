@@ -1,0 +1,20 @@
+
+spring:
+  application:
+    name: spring-security-websocket
+#  security:
+#    user:
+#      name: admin
+#      password: admin
+#      roles:
+#        - USER
+#        - ADMIN
+logging:
+  level:
+    web: trace
+    org:
+      springframework:
+        messaging: trace
+        web:
+          socket: trace
+
