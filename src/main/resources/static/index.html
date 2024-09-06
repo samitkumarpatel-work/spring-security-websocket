@@ -28,17 +28,14 @@
             <hr/>
             <p>Welcome {{ loggedInUser.username }}!</p>
             <hr/>
+            
             <div style="display: flex;flex-direction: row; gap: 20px; align-content: space-around">
-                <div>
+                <div style="border-right: 1px solid gray;">
                     <form @submit.prevent="sendPrivateMessage">
                         <select v-model="message.to">
                             <option v-for="user in users" :value="user.username" :disabled="loggedInUser.username === user.username">{{user.username}}</option>
                         </select>
-
                         <input type="text" v-model="message.message">
-
-                        <br/>
-
                         <button>Send</button>
                     </form>
                     <br/>
@@ -50,6 +47,7 @@
                     </ul>
                 </div>
             </div>
+
         </div>
         <script>
             const { createApp, ref, onMounted } = Vue

@@ -72,7 +72,7 @@ class Db {
 	public List<User> findAll() {
 		return users.stream().map(u -> new User(u.username(), null, u.authorities(), u.status())).toList();
 	}
-	
+
 }
 
 @Service
